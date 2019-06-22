@@ -1,6 +1,9 @@
 package in.dotapps.plugins.flutter_torrent_streamer;
 
 import android.annotation.TargetApi;
+import android.content.Context;
+import android.net.wifi.WifiInfo;
+import android.net.wifi.WifiManager;
 
 import com.github.se_bastiaan.torrentstream.StreamStatus;
 import com.github.se_bastiaan.torrentstream.Torrent;
@@ -8,6 +11,9 @@ import com.github.se_bastiaan.torrentstream.TorrentOptions;
 import com.github.se_bastiaan.torrentstream.TorrentStream;
 import com.github.se_bastiaan.torrentstream.listeners.TorrentListener;
 
+import java.io.IOException;
+import java.net.InetAddress;
+import java.net.UnknownHostException;
 import java.util.HashMap;
 
 import io.flutter.plugin.common.EventChannel;
@@ -19,15 +25,19 @@ import io.flutter.plugin.common.MethodChannel.MethodCallHandler;
 import io.flutter.plugin.common.MethodChannel.Result;
 import io.flutter.plugin.common.PluginRegistry.Registrar;
 
+
 /** TorrentStreamerPlugin */
 @TargetApi(16)
 public class FlutterTorrentStreamerPlugin implements MethodCallHandler, StreamHandler {
   static private final String pluginName = "flutter_torrent_streamer";
   static private final String packagePrefix = "in.dotapps.plugins";
   static private final String channelName = packagePrefix + "/" + pluginName;
+  static private Registrar registrar;
 
   /** Plugin registration. */
   public static void registerWith(Registrar registrar) {
+    FlutterTorrentStreamerPlugin.registrar = registrar;
+
     final MethodChannel methodChannel = new MethodChannel(
             registrar.messenger(), channelName);
 
@@ -42,6 +52,7 @@ public class FlutterTorrentStreamerPlugin implements MethodCallHandler, StreamHa
 
   private TorrentStream torrentStream;
   private TorrentListener torrentListener;
+  private TorrentStreamServer server;
   private boolean isDownloading = false;
 
   @Override
@@ -93,7 +104,7 @@ public class FlutterTorrentStreamerPlugin implements MethodCallHandler, StreamHa
       public void onStreamReady(Torrent torrent) {
         // Called when enough bits have been downloaded to stream video
         final HashMap<String, Object> data = new HashMap<>();
-        data.put("file", torrent.getVideoFile().getAbsolutePath());
+        data.put("url", getTorrentStreamingUrl(torrent));
         eventSink.success(new EventUpdate("ready", data).toMap());
       }
 
@@ -133,6 +144,26 @@ public class FlutterTorrentStreamerPlugin implements MethodCallHandler, StreamHa
             .build();
 
     torrentStream = TorrentStream.init(torrentOptions);
+
+    String ipAddress = "127.0.0.1";
+    try {
+      InetAddress inetAddress = getIpAddress(registrar.context());
+      if (inetAddress != null) {
+        ipAddress = inetAddress.getHostAddress();
+      }
+    } catch (UnknownHostException e) {
+      e.printStackTrace();
+    }
+
+    try {
+      server = new TorrentStreamServer(ipAddress, 7777, saveLocation, torrentStream);
+      server.start();
+
+      result.success(null);
+    } catch (IOException e) {
+      result.error("INIT_ERROR", null, e);
+    }
+
     result.success(null);
   }
 
@@ -147,6 +178,41 @@ public class FlutterTorrentStreamerPlugin implements MethodCallHandler, StreamHa
     torrentStream.stopStream();
     isDownloading = false;
     result.success(null);
+  }
+
+  private String getTorrentStreamingUrl(Torrent torrent) {
+    String host = server.getHostname();
+    int port = server.getListeningPort();
+    String fileName = torrent.getVideoFile().getName();
+
+    return host + ":" + port + "/" + fileName;
+  }
+
+  private static InetAddress getIpAddress(Context context) throws UnknownHostException {
+    WifiManager wifiMgr =
+        (WifiManager) context.getApplicationContext().getSystemService(Context.WIFI_SERVICE);
+    try {
+      WifiInfo wifiInfo = wifiMgr.getConnectionInfo();
+      int ip = wifiInfo.getIpAddress();
+
+      if (ip == 0) {
+        return null;
+      } else {
+        byte[] ipAddress = convertIpAddress(ip);
+        return InetAddress.getByAddress(ipAddress);
+      }
+    } catch (NullPointerException e) {
+      return null;
+    }
+  }
+
+  private static byte[] convertIpAddress(int ip) {
+    return new byte[] {
+            (byte) (ip & 0xFF),
+            (byte) ((ip >> 8) & 0xFF),
+            (byte) ((ip >> 16) & 0xFF),
+            (byte) ((ip >> 24) & 0xFF)
+    };
   }
 
   private class EventUpdate {

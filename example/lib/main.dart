@@ -56,8 +56,9 @@ class _MyAppState extends State<MyApp> {
 
     TorrentStreamer.addEventListener('ready', (data) async {
       if (_controller == null) {
-        final File videoFile = File(data['file']);
-        _controller = VideoPlayerController.file(videoFile);
+        print("ready: " + data.toString());
+        final String videoUrl = data['url'];
+        _controller = VideoPlayerController.network(videoUrl);
         await _controller.initialize();
         setState(() {
           downloadStatus = 'Download Complete: Ready to play!';
