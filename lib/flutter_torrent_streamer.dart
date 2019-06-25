@@ -50,6 +50,9 @@ class TorrentStreamer {
   /// Initialises Torrent Streamer. Initialisation should be done before
   /// adding torrents.
   static Future<void> init([TorrentStreamerOptions options]) async {
+    if (isInitialised) return;
+
+    await dispose();
     if (options == null) {
       options = await defaultOptions;
     }
@@ -90,6 +93,17 @@ class TorrentStreamer {
     await _channel.invokeMethod('stop');
   }
 
+  /// Will destroy all event listeners and stop the server
+  /// Call it whenever the widget in which it is initialised is destroyed
+  static Future<void> dispose() async {
+    try {
+      removeEventListeners();
+      await _channel.invokeMethod('dispose');
+    } catch (e) {
+      print('Ignored dispose error:' + e.toString());
+    }
+  }
+
   static void _checkForInitialisation() {
     if (!isInitialised) {
       throw new Exception('Initialise torrent streamer before using it!');
@@ -118,8 +132,4 @@ class TorrentStreamer {
     );
   }
 
-  static Future<String> get platformVersion async {
-    final String version = await _channel.invokeMethod('getPlatformVersion');
-    return version;
-  }
 }

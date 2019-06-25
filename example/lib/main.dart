@@ -1,5 +1,3 @@
-import 'dart:io';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_torrent_streamer/flutter_torrent_streamer.dart';
 import 'package:video_player/video_player.dart';
@@ -43,7 +41,8 @@ class _MyAppState extends State<MyApp> {
       setState(() {
         downloadStatus = 'Download stopped';
         isStreamReady = false;
-        _controller.dispose();
+
+        if (_controller != null) _controller.dispose();
         _controller = null;
       });
     });
@@ -56,8 +55,8 @@ class _MyAppState extends State<MyApp> {
 
     TorrentStreamer.addEventListener('ready', (data) async {
       if (_controller == null) {
-        final File videoFile = File(data['file']);
-        _controller = VideoPlayerController.file(videoFile);
+        final String videoUrl = data['url'];
+        _controller = VideoPlayerController.network(videoUrl);
         await _controller.initialize();
         setState(() {
           downloadStatus = 'Download Complete: Ready to play!';
@@ -75,7 +74,7 @@ class _MyAppState extends State<MyApp> {
   }
 
   void startDownload() {
-    String uri = "https://yts.lt/torrent/download/FE6EB05072CFF4F2FC865AC4398C0C1914A2F99C";
+    String uri = "https://webtorrent.io/torrents/big-buck-bunny.torrent";
     TorrentStreamer.start(uri);
   }
 
