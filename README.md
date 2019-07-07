@@ -6,7 +6,7 @@ A flutter plugin to stream videos directly from torrent&#x2F;magnet links.
 This plugin is still under development and pull requests to make it better are heavily appreciated  
   
 ## Few Important points to note before using this plugin  
-- Has only android support for now. (Help to implement ios support is highly appreciated)  
+- Has only android support for now. (Help to implement iOS support is highly appreciated)  
 - Is still under development and APIs may go through breaking changes.  
 - Supports streaming and seeking videos while still being downloaded but is still experimental and has been tested to work on MX Player but does not work with `video_player` plugin.    
   
@@ -104,3 +104,11 @@ class _TorrentStreamerViewState extends State<TorrentStreamerView> {
   }
 }  
 ```
+
+See [example](/example) app for more detailed usage.
+
+## TODO
+- Add support for `video_player` flutter plugin.
+- Make streaming and seeking more robust for while download still in progress.
+- Run torrent streamer server on local network instead of localhost.
+- Add support for iOS.
