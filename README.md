@@ -1,6 +1,8 @@
 
 # Flutter Torrent Streamer  
-  
+
+[![pub](https://img.shields.io/pub/v/flutter_torrent_streamer.svg?color=blue)](https://pub.dev/packages/flutter_torrent_streamer)
+
 A flutter plugin to stream videos directly from torrent&#x2F;magnet links.  
   
 This plugin is still under development and pull requests to make it better are heavily appreciated  
@@ -14,7 +16,7 @@ This plugin is still under development and pull requests to make it better are h
   
 Add below line to your `pubspec.yaml` and run `flutter packages get`  
 ```  
-flutter_torrent_streamer: ^0.0.1+1  
+flutter_torrent_streamer: ^0.0.1+2
 ```  
   
 ## Example  

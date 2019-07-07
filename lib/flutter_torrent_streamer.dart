@@ -7,7 +7,9 @@ import 'package:path_provider/path_provider.dart';
 typedef EventCallback = void Function(dynamic data);
 
 class TorrentStreamerOptions {
+  /// If true torrent file will be deleted when stop download is called
   final bool removeFilesAfterStop;
+  /// Location where torrents should be downloaded to
   final String saveLocation;
 
   TorrentStreamerOptions({
@@ -33,7 +35,7 @@ class TorrentStreamer {
 
   static final Map<String, EventCallback> _listeners = {};
 
-  static bool isInitialised = false;
+  static bool _isInitialised = false;
   static StreamSubscription _subscription;
 
   /// Cleans save location
@@ -44,13 +46,14 @@ class TorrentStreamer {
   }
 
   /// Listen to different events emitted by Torrent Streamer.
+  ///
   /// Supports Events:
-  ///   started - When new torrent download starts
-  ///   prepared - When torrent finished fetching meta data
-  ///   progress - When currently downloading torrent progresses
-  ///   ready - When torrent has downloaded enough data to start streaming
-  ///   stopped - When currently downloading torrent is stopped
-  ///   error - When torrent download encounters some error
+  /// * started - When new torrent download starts
+  /// * prepared - When torrent finished fetching meta data
+  /// * progress - When currently downloading torrent progresses
+  /// * ready - When torrent has downloaded enough data to start streaming
+  /// * stopped - When currently downloading torrent is stopped
+  /// * error - When torrent download encounters some error
   /// type: Event type
   /// cb: Callback to invoke when event occurs
   static addEventListener(String type, EventCallback cb) {
@@ -74,21 +77,24 @@ class TorrentStreamer {
     return await _channel.invokeMethod('getVideoPath');
   }
 
-  /// Initialises Torrent Streamer. Initialisation should be done before
-  /// adding torrents.
+  /// Initialises Torrent Streamer.
+  ///
+  /// Initialisation should be done before adding torrents.
   static Future<void> init([TorrentStreamerOptions options]) async {
-    if (isInitialised) return;
+    if (_isInitialised) return;
 
     await dispose();
     if (options == null) {
       options = await defaultOptions;
     }
     await _channel.invokeMethod('init', options.toMap());
-    isInitialised = true;
+    _isInitialised = true;
   }
 
-  /// Launches video in a action_view intent, launching video while download
-  /// in progress is experimental and will work only in limited set of apps
+  /// Launches video in a action_view intent.
+  ///
+  /// Launching video while download in progress is experimental and will
+  /// work only in limited set of apps
   static Future<void> launchVideo() async {
     _checkForInitialisation();
 
@@ -128,7 +134,8 @@ class TorrentStreamer {
     await _channel.invokeMethod('stop');
   }
 
-  /// Will destroy all event listeners and stop the server
+  /// Will destroy all event listeners and stop the server.
+  ///
   /// Call it whenever the widget in which it is initialised is destroyed
   static Future<void> dispose() async {
     try {
@@ -140,13 +147,12 @@ class TorrentStreamer {
   }
 
   static void _checkForInitialisation() {
-    if (!isInitialised) {
+    if (!_isInitialised) {
       throw new Exception('Initialise torrent streamer before using it!');
     }
   }
 
-  /// Initialises event listeners so that dart gets updates from platform
-  /// for various events like 'progress', 'start', 'stop' and 'error'.
+  /// Initialises event listeners.
   static void _initialiseListener() {
     if (_subscription == null) {
       _subscription = _stream.receiveBroadcastStream().listen((event) {
@@ -159,6 +165,7 @@ class TorrentStreamer {
     }
   }
 
+  /// Default value used for [TorrentStreamerOptions]
   static Future<TorrentStreamerOptions> get defaultOptions async {
     Directory tempDir = await getTemporaryDirectory();
     return TorrentStreamerOptions(
@@ -167,4 +174,6 @@ class TorrentStreamer {
     );
   }
 
+  /// Indicates if [TorrentStreamer] has been initialised or not
+  static bool get isInitialised => _isInitialised;
 }

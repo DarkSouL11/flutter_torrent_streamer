@@ -43,7 +43,4 @@ android {
 dependencies {
     implementation 'com.github.TorrentStream:TorrentStream-Android:2.5.0'
     implementation 'org.nanohttpd:nanohttpd-webserver:2.3.1'
-    // Below line will help android studio to resolve flutter android libraries for syntax highlighting
-    // But should be commented out using the plugin
-    // implementation files('/Users/sundeep/flutter/bin/cache/artifacts/engine/android-x64/flutter.jar')
 }
