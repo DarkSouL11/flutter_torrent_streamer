@@ -36,8 +36,21 @@ class TorrentStreamer {
   static bool isInitialised = false;
   static StreamSubscription _subscription;
 
+  /// Cleans save location
+  static Future<void> clean() async {
+    _checkForInitialisation();
+
+    await _channel.invokeMethod('clean');
+  }
+
   /// Listen to different events emitted by Torrent Streamer.
-  /// Supports 'start', 'progress', 'stop' and 'error'.
+  /// Supports Events:
+  ///   started - When new torrent download starts
+  ///   prepared - When torrent finished fetching meta data
+  ///   progress - When currently downloading torrent progresses
+  ///   ready - When torrent has downloaded enough data to start streaming
+  ///   stopped - When currently downloading torrent is stopped
+  ///   error - When torrent download encounters some error
   /// type: Event type
   /// cb: Callback to invoke when event occurs
   static addEventListener(String type, EventCallback cb) {
@@ -45,6 +58,20 @@ class TorrentStreamer {
 
     _initialiseListener();
     _listeners[type] = cb;
+  }
+
+  /// Returns the url using which current torrent video file can be streamed
+  static Future<String> getStreamUrl() async {
+    _checkForInitialisation();
+
+    return await _channel.invokeMethod('getStreamUrl');
+  }
+
+  /// Returns the path to downloaded torrent video
+  static Future<String> getVideoPath() async {
+    _checkForInitialisation();
+
+    return await _channel.invokeMethod('getVideoPath');
   }
 
   /// Initialises Torrent Streamer. Initialisation should be done before
@@ -58,6 +85,14 @@ class TorrentStreamer {
     }
     await _channel.invokeMethod('init', options.toMap());
     isInitialised = true;
+  }
+
+  /// Launches video in a action_view intent, launching video while download
+  /// in progress is experimental and will work only in limited set of apps
+  static Future<void> launchVideo() async {
+    _checkForInitialisation();
+
+    await _channel.invokeMethod('launchVideo');
   }
 
   /// Removes event handler for the specified event type

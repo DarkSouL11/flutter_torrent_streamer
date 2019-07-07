@@ -20,6 +20,7 @@ import fi.iki.elonen.NanoHTTPD.Response;
 import fi.iki.elonen.WebServerPlugin;
 
 public class VideoServerPlugin implements WebServerPlugin {
+  private String TAG = VideoServerPlugin.class.getCanonicalName();
   private TorrentStream stream;
 
   VideoServerPlugin(TorrentStream stream) {
@@ -28,7 +29,9 @@ public class VideoServerPlugin implements WebServerPlugin {
 
   @Override
   public boolean canServeUri(String uri, File rootDir) {
-    return true;
+    final TorrentHandle th = getTorrentHandle();
+    // We want to serve video file normally if it is downloaded completely
+    return th.status().progress() != 1;
   }
 
   @Override
@@ -42,17 +45,16 @@ public class VideoServerPlugin implements WebServerPlugin {
       long[] range = getRange(headers);
       final LinkedHashMap<Integer, Boolean> requiredPieces = getRequiredPieceIndices(range);
       final CountDownLatch latch = new CountDownLatch(1);
-
       torrent.setInterestedBytes(range[0]);
       final Waiter waitForDownload = new Waiter(latch, requiredPieces);
       waitForDownload.start();
       latch.await();
       InputStream is = torrent.getVideoStream();
-      byte[] content = new byte[(int)range[2]];
+      byte[] content = new byte[(int) range[2]];
       is.skip(range[0]);
-      is.read(content, 0, (int)range[2]);
-
+      is.read(content, 0, (int) range[2]);
       response = NanoHTTPD.newFixedLengthResponse(Response.Status.PARTIAL_CONTENT, mimeType, new ByteArrayInputStream(content), range[2]);
+
       response.addHeader("Accept-Ranges", "bytes");
       response.addHeader("Content-Length", range[2] + "");
       response.addHeader("Content-Range", "bytes " + range[0] + "-" + range[1] + "/" + torrent.getVideoFile().length());
@@ -99,7 +101,7 @@ public class VideoServerPlugin implements WebServerPlugin {
         int separatorIndex = header.indexOf("-");
         if (separatorIndex > 0) {
           range[0] = Long.parseLong(header.substring(0, separatorIndex));
-          range[1] = Long.parseLong(header.substring(separatorIndex));
+          range[1] = Long.parseLong(header.substring(separatorIndex + 1));
         }
       }
     } catch (NumberFormatException e) {
@@ -168,13 +170,13 @@ public class VideoServerPlugin implements WebServerPlugin {
               }
             }
           }
-
+          // Log.d(TAG, "PIECES STATUS: " + pieces.toString());
           if (allPiecesDownloaded) {
             latch.countDown();
             timer.cancel();
           }
         }
-      }, 0, 1000);
+      }, 0, 3000);
     }
   }
 }

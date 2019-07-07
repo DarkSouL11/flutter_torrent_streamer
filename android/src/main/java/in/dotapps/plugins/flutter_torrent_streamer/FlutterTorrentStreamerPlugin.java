@@ -1,6 +1,9 @@
 package in.dotapps.plugins.flutter_torrent_streamer;
 
 import android.annotation.TargetApi;
+import android.content.Context;
+import android.content.Intent;
+import android.net.Uri;
 import android.util.Log;
 
 import com.github.se_bastiaan.torrentstream.StreamStatus;
@@ -8,8 +11,11 @@ import com.github.se_bastiaan.torrentstream.Torrent;
 import com.github.se_bastiaan.torrentstream.TorrentOptions;
 import com.github.se_bastiaan.torrentstream.TorrentStream;
 import com.github.se_bastiaan.torrentstream.listeners.TorrentListener;
+import com.github.se_bastiaan.torrentstream.utils.FileUtils;
 
+import java.io.File;
 import java.io.IOException;
+import java.net.URI;
 import java.util.HashMap;
 
 import io.flutter.plugin.common.EventChannel;
@@ -20,13 +26,12 @@ import io.flutter.plugin.common.MethodChannel;
 import io.flutter.plugin.common.MethodChannel.MethodCallHandler;
 import io.flutter.plugin.common.MethodChannel.Result;
 
-import io.flutter.plugin.common.PluginRegistry;
 import io.flutter.plugin.common.PluginRegistry.Registrar;
-import io.flutter.view.FlutterNativeView;
 
 /** TorrentStreamerPlugin */
 @TargetApi(16)
 public class FlutterTorrentStreamerPlugin implements MethodCallHandler, StreamHandler {
+  static private final String TAG = FlutterTorrentStreamerPlugin.class.getCanonicalName();
   static private final String pluginName = "flutter_torrent_streamer";
   static private final String packagePrefix = "in.dotapps.plugins";
   static private final String channelName = packagePrefix + "/" + pluginName;
@@ -51,6 +56,7 @@ public class FlutterTorrentStreamerPlugin implements MethodCallHandler, StreamHa
   private TorrentListener torrentListener;
   private TorrentStream torrentStream;
   private TorrentStreamServer server;
+  private String saveLocation;
   private boolean isDownloading = false;
 
   @Override
@@ -64,6 +70,18 @@ public class FlutterTorrentStreamerPlugin implements MethodCallHandler, StreamHa
         break;
       case "stop":
         stopHandler(result);
+        break;
+      case "getStreamUrl":
+        getStreamUrlHandler(result);
+        break;
+      case "getVideoPath":
+        getVideoPathHandler(result);
+        break;
+      case "launchVideo":
+        launchVideoHandler(result);
+        break;
+      case "clean":
+        cleanHandler(result);
         break;
       case "dispose":
         disposeHandler(result);
@@ -86,12 +104,14 @@ public class FlutterTorrentStreamerPlugin implements MethodCallHandler, StreamHa
 
       @Override
       public void onStreamStarted(Torrent torrent) {
+        isDownloading = true;
         // Called when torrent download starts
         eventSink.success(new EventUpdate("started", null).toMap());
       }
 
       @Override
       public void onStreamError(Torrent torrent, Exception e) {
+        isDownloading = false;
         final HashMap<String, Object> data = new HashMap<>();
         data.put("message", e.getMessage());
         eventSink.success(new EventUpdate("error", data).toMap());
@@ -107,6 +127,10 @@ public class FlutterTorrentStreamerPlugin implements MethodCallHandler, StreamHa
 
       @Override
       public void onStreamProgress(Torrent torrent, StreamStatus status) {
+        // Not correct to make `isDownloading` false when progress becomes 100 as even after
+        // that torrent will be seeding, so `isDownloading` should be made false only on
+        // stream stop.
+        // if (status.progress == 100) isDownloading = false;
         final HashMap<String, Object> data = new HashMap<>();
         data.put("bufferProgress", status.bufferProgress);
         data.put("downloadSpeed", status.downloadSpeed);
@@ -117,7 +141,7 @@ public class FlutterTorrentStreamerPlugin implements MethodCallHandler, StreamHa
 
       @Override
       public void onStreamStopped() {
-        // Called when torrent has been stopped
+        isDownloading = false;
         eventSink.success(new EventUpdate("stopped", null).toMap());
       }
     };
@@ -134,6 +158,8 @@ public class FlutterTorrentStreamerPlugin implements MethodCallHandler, StreamHa
     final String saveLocation = (String) options.get("saveLocation");
     final boolean removeOnStop = (boolean) options.get("removeFilesAfterStop");
 
+    this.saveLocation = saveLocation;
+
     final TorrentOptions torrentOptions = new TorrentOptions.Builder()
             .autoDownload(true)
             .saveLocation(saveLocation)
@@ -142,7 +168,7 @@ public class FlutterTorrentStreamerPlugin implements MethodCallHandler, StreamHa
 
     torrentStream = TorrentStream.init(torrentOptions);
 
-    final String host = "127.0.0.1";
+    final String host = "localhost";
     final int port = 8080;
 
     try {
@@ -155,14 +181,12 @@ public class FlutterTorrentStreamerPlugin implements MethodCallHandler, StreamHa
     Log.d(packagePrefix, "Torrent server listening to http://" +
       server.getHostname() + ":" + server.getListeningPort() + "/");
 
-    registrar.addViewDestroyListener(new PluginRegistry.ViewDestroyListener() {
-      @Override
-      public boolean onViewDestroy(FlutterNativeView flutterNativeView) {
-        server.stop();
-        return true;
-      }
+    registrar.addViewDestroyListener(flutterNativeView -> {
+      server.stop();
+      return true;
     });
 
+    isDownloading = false;
     result.success(null);
   }
 
@@ -175,7 +199,55 @@ public class FlutterTorrentStreamerPlugin implements MethodCallHandler, StreamHa
 
   private void stopHandler(Result result) {
     torrentStream.stopStream();
-    isDownloading = false;
+    result.success(null);
+  }
+
+  private void getVideoPathHandler(Result result) {
+    if (isDownloading) {
+      final Torrent torrent = torrentStream.getCurrentTorrent();
+      result.success(torrent.getVideoFile().toURI().toString());
+    } else {
+      result.error("No active torrent to stream", null, null);
+    }
+  }
+
+  private void getStreamUrlHandler(Result result) {
+    if (isDownloading) {
+      final Torrent torrent = torrentStream.getCurrentTorrent();
+      result.success(getTorrentStreamingUrl(torrent));
+    } else {
+      result.error("No active torrent to stream", null, null);
+    }
+  }
+
+  private void launchVideoHandler(Result result) {
+    final Context context = getActiveContext();
+    final Torrent torrent = torrentStream.getCurrentTorrent();
+    final Intent intent = new Intent(Intent.ACTION_VIEW);
+
+    if (torrent != null) {
+      final float progress = torrent.getTorrentHandle().status().progress();
+
+      if (progress != 1) {
+        Log.w(TAG, "Launching video that is not yet completely downloaded is still experimental");
+      }
+
+      if (registrar.activity() == null) {
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+      }
+
+      intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+      intent.setDataAndType(Uri.parse(getTorrentStreamingUrl(torrent)), "video/*");
+
+      context.startActivity(intent);
+      result.success(null);
+    } else {
+      result.error("No active torrent to launch!", null, null);
+    }
+  }
+
+  private void cleanHandler(Result result) {
+    FileUtils.recursiveDelete(new File(saveLocation));
     result.success(null);
   }
 
@@ -194,12 +266,22 @@ public class FlutterTorrentStreamerPlugin implements MethodCallHandler, StreamHa
     result.success(null);
   }
 
+  private Context getActiveContext() {
+    return (registrar.activity() != null) ? registrar.activity() : registrar.context();
+  }
+
   private String getTorrentStreamingUrl(Torrent torrent) {
     String host = server.getHostname();
     int port = server.getListeningPort();
-    String fileName = torrent.getVideoFile().getName();
 
-    return "http://" + host + ":" + port + "/" + fileName;
+    return "http://" + host + ":" + port + "/" + getTorrentRelativePath(torrent);
+  }
+
+  private String getTorrentRelativePath(Torrent torrent) {
+    final URI saveDir = new File(saveLocation).toURI();
+    final URI torrentFile = torrent.getVideoFile().toURI();
+    final String relativeFilePath = saveDir.relativize(torrentFile).getPath();
+    return relativeFilePath;
   }
 
   private class EventUpdate {
