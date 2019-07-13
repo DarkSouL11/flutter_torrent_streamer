@@ -1,7 +1,7 @@
 
 # Flutter Torrent Streamer  
 
-[![pub](https://img.shields.io/pub/v/flutter_torrent_streamer.svg?color=blue)](https://pub.dev/packages/flutter_torrent_streamer)
+[![pub](https://img.shields.io/pub/v/flutter_torrent_streamer.svg)](https://pub.dev/packages/flutter_torrent_streamer)
 
 A flutter plugin to stream videos directly from torrent&#x2F;magnet links.  
   
@@ -16,7 +16,7 @@ This plugin is still under development and pull requests to make it better are h
   
 Add below line to your `pubspec.yaml` and run `flutter packages get`  
 ```  
-flutter_torrent_streamer: ^0.0.1+2
+flutter_torrent_streamer: ^0.0.2
 ```  
   
 ## Example  
@@ -108,6 +108,14 @@ class _TorrentStreamerViewState extends State<TorrentStreamerView> {
 ```
 
 See [example](/example) app for more detailed usage.
+
+## Using in release builds
+
+If you are using proguard in your app then add the below 2 lines to your proguard rules:
+```
+-keep class com.frostwire.jlibtorrent.swig.libtorrent_jni {*;}
+-keep class com.frostwire.jlibtorrent.swig.** { *; }
+```
 
 ## TODO
 - Add support for `video_player` flutter plugin.

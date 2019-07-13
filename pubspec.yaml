@@ -1,6 +1,6 @@
 name: flutter_torrent_streamer
 description: A flutter plugin to stream videos directly from torrent&#x2F;magnet links.
-version: 0.0.1+2
+version: 0.0.2
 author: Sundeep Babbur <sundeep.sundeep11@gmail.com>
 homepage: https://github.com/DarkSouL11/flutter_torrent_streamer
 

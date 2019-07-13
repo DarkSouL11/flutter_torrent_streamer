@@ -65,7 +65,7 @@ public class FlutterTorrentStreamerPlugin implements MethodCallHandler, StreamHa
   public void onMethodCall(MethodCall call, Result result) {
     switch (call.method) {
       case "init":
-        initHandler((HashMap<String, Object>) call.arguments, result);
+        initHandler((HashMap) call.arguments, result);
         break;
       case "start":
         startHandler(call.argument("uri"), result);
@@ -156,7 +156,7 @@ public class FlutterTorrentStreamerPlugin implements MethodCallHandler, StreamHa
     torrentListener = null;
   }
 
-  private void initHandler(HashMap<String, Object> options, Result result) {
+  private void initHandler(HashMap options, Result result) {
     final String saveLocation = (String) options.get("saveLocation");
     final boolean removeOnStop = (boolean) options.get("removeFilesAfterStop");
     final int port = (int) options.get("port");
