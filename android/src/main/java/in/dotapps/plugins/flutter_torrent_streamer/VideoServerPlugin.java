@@ -41,23 +41,46 @@ public class VideoServerPlugin implements WebServerPlugin {
   public Response serveFile(String uri, Map<String, String> headers, IHTTPSession session, File file, String mimeType) {
     final Torrent torrent = getTorrent();
     Response response;
-    try {
-      long[] range = getRange(headers);
-      final LinkedHashMap<Integer, Boolean> requiredPieces = getRequiredPieceIndices(range);
-      final CountDownLatch latch = new CountDownLatch(1);
-      torrent.setInterestedBytes(range[0]);
-      final Waiter waitForDownload = new Waiter(latch, requiredPieces);
-      waitForDownload.start();
-      latch.await();
-      InputStream is = torrent.getVideoStream();
-      byte[] content = new byte[(int) range[2]];
-      is.skip(range[0]);
-      is.read(content, 0, (int) range[2]);
-      response = NanoHTTPD.newFixedLengthResponse(Response.Status.PARTIAL_CONTENT, mimeType, new ByteArrayInputStream(content), range[2]);
 
-      response.addHeader("Accept-Ranges", "bytes");
-      response.addHeader("Content-Length", range[2] + "");
-      response.addHeader("Content-Range", "bytes " + range[0] + "-" + range[1] + "/" + torrent.getVideoFile().length());
+    try {
+      String etag = Integer.toHexString((file.getAbsolutePath() + file.lastModified() + "" + file.length()).hashCode());
+      String rangeHeader = headers.get("range");
+
+      if (rangeHeader != null) {
+        long[] range = getRange(rangeHeader);
+        torrent.setInterestedBytes(range[0]);
+
+        final LinkedHashMap<Integer, Boolean> requiredPieces = getRequiredPieceIndices(range);
+        final CountDownLatch latch = new CountDownLatch(1);
+        final Waiter waiter = new Waiter(latch, requiredPieces);
+        waiter.start();
+        latch.await();
+
+        InputStream is = torrent.getVideoStream();
+        byte[] content = new byte[(int) range[2]];
+        is.skip(range[0]);
+        is.read(content, 0, (int) range[2]);
+
+        response = NanoHTTPD.newFixedLengthResponse(Response.Status.PARTIAL_CONTENT, mimeType, new ByteArrayInputStream(content), range[2]);
+        response.addHeader("Accept-Ranges", "bytes");
+        response.addHeader("Content-Length", range[2] + "");
+        response.addHeader("Content-Range", "bytes " + range[0] + "-" + range[1] + "/" + file.length());
+        response.addHeader("ETag", etag);
+
+        is.close();
+      } else {
+        if (etag.equals(headers.get("if-none-match")))
+          response = NanoHTTPD.newFixedLengthResponse(Response.Status.NOT_MODIFIED, mimeType, "");
+        else {
+          InputStream is = torrent.getVideoStream();
+
+          response = NanoHTTPD.newFixedLengthResponse(Response.Status.OK, mimeType, is, file.length());
+          response.addHeader("Content-Length", "" + file.length());
+          response.addHeader("ETag", etag);
+
+          is.close();
+        }
+      }
     } catch (IOException e) {
       response = NanoHTTPD.newFixedLengthResponse(Response.Status.CONFLICT, NanoHTTPD.MIME_PLAINTEXT, "Torrent not yet streaming");
     } catch (InterruptedException e) {
@@ -90,13 +113,12 @@ public class VideoServerPlugin implements WebServerPlugin {
    * arr[1] - end
    * arr[2] - total no. of bytes i.e end - start + 1
    */
-  private long[] getRange(Map<String, String> headers) {
+  private long[] getRange(String header) {
     final long[] range = new long[] {0, -1, 0};
     final Torrent torrent = getTorrent();
-    String header = headers.get("range");
 
     try {
-      if (header != null && header.startsWith("bytes=")) {
+      if (header.startsWith("bytes=")) {
         header = header.substring("bytes=".length());
         int separatorIndex = header.indexOf("-");
         if (separatorIndex > 0) {

@@ -15,7 +15,9 @@ import com.github.se_bastiaan.torrentstream.utils.FileUtils;
 
 import java.io.File;
 import java.io.IOException;
+import java.io.UnsupportedEncodingException;
 import java.net.URI;
+import java.net.URLEncoder;
 import java.util.HashMap;
 
 import io.flutter.plugin.common.EventChannel;
@@ -161,10 +163,10 @@ public class FlutterTorrentStreamerPlugin implements MethodCallHandler, StreamHa
     this.saveLocation = saveLocation;
 
     final TorrentOptions torrentOptions = new TorrentOptions.Builder()
-            .autoDownload(true)
-            .saveLocation(saveLocation)
-            .removeFilesAfterStop(removeOnStop)
-            .build();
+      .autoDownload(true)
+      .saveLocation(saveLocation)
+      .removeFilesAfterStop(removeOnStop)
+      .build();
 
     torrentStream = TorrentStream.init(torrentOptions);
 
@@ -274,14 +276,38 @@ public class FlutterTorrentStreamerPlugin implements MethodCallHandler, StreamHa
     String host = server.getHostname();
     int port = server.getListeningPort();
 
-    return "http://" + host + ":" + port + "/" + getTorrentRelativePath(torrent);
+    String url = "http://" + host + ":" + port + "/" + getTorrentRelativePath(torrent);
+    return encodeURI(url);
   }
 
   private String getTorrentRelativePath(Torrent torrent) {
     final URI saveDir = new File(saveLocation).toURI();
     final URI torrentFile = torrent.getVideoFile().toURI();
-    final String relativeFilePath = saveDir.relativize(torrentFile).getPath();
-    return relativeFilePath;
+    return saveDir.relativize(torrentFile).getPath();
+  }
+
+  private  String encodeURIComponent(String url) {
+    try {
+      return URLEncoder.encode(url, "UTF-8")
+        .replaceAll("\\+", "%20")
+        .replaceAll("%21", "!")
+        .replaceAll("%27", "'")
+        .replaceAll("%28", "(")
+        .replaceAll("%29", ")")
+        .replaceAll("%7E", "~");
+    } catch (UnsupportedEncodingException e) {
+      // Should never occur
+      return url;
+    }
+  }
+
+  private String encodeURI(String url) {
+    return  encodeURIComponent(url)
+      .replaceAll("%3A", ":")
+      .replaceAll("%2F", "/")
+      .replaceAll("%3F", "?")
+      .replaceAll("%3D", "=")
+      .replaceAll("%26", "&");
   }
 
   private class EventUpdate {
