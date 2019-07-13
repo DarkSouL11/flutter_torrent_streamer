@@ -52,6 +52,14 @@ class _TorrentStreamerViewState extends State<TorrentStreamerView> {
     _addTorrentListeners();
   }
 
+  @override
+  void dispose() {
+    TorrentStreamer.stop();
+    TorrentStreamer.removeEventListeners();
+
+    super.dispose();
+  }
+
   void resetState() {
     setState(() {
       isDownloading = false;

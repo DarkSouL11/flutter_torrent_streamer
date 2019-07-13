@@ -159,6 +159,7 @@ public class FlutterTorrentStreamerPlugin implements MethodCallHandler, StreamHa
   private void initHandler(HashMap<String, Object> options, Result result) {
     final String saveLocation = (String) options.get("saveLocation");
     final boolean removeOnStop = (boolean) options.get("removeFilesAfterStop");
+    final int port = (int) options.get("port");
 
     this.saveLocation = saveLocation;
 
@@ -171,8 +172,6 @@ public class FlutterTorrentStreamerPlugin implements MethodCallHandler, StreamHa
     torrentStream = TorrentStream.init(torrentOptions);
 
     final String host = "localhost";
-    final int port = 8080;
-
     try {
       server = new TorrentStreamServer(host, port, saveLocation, torrentStream);
       server.start();

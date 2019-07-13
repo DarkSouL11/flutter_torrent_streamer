@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
 
@@ -11,16 +12,24 @@ class TorrentStreamerOptions {
   final bool removeFilesAfterStop;
   /// Location where torrents should be downloaded to
   final String saveLocation;
+  /// Port on which streaming server should run
+  final int port;
 
   TorrentStreamerOptions({
-    this.removeFilesAfterStop,
-    this.saveLocation
-  });
+    @required this.removeFilesAfterStop,
+    @required this.saveLocation,
+    @required this.port,
+  }) : assert(isValidPort(port), 'Port should be between 1023 and 65535');
+
+  static isValidPort(int port) {
+    return (port > 1023) && (port <= 65535);
+  }
 
   Map<String, dynamic> toMap() {
     return {
       'saveLocation': saveLocation,
-      'removeFilesAfterStop': removeFilesAfterStop
+      'removeFilesAfterStop': removeFilesAfterStop,
+      'port': port
     };
   }
 }
@@ -170,7 +179,8 @@ class TorrentStreamer {
     Directory tempDir = await getTemporaryDirectory();
     return TorrentStreamerOptions(
       saveLocation: tempDir.path,
-      removeFilesAfterStop: true
+      removeFilesAfterStop: false,
+      port: 8080
     );
   }
 

@@ -1,5 +1,7 @@
 package in.dotapps.plugins.flutter_torrent_streamer;
 
+import android.util.Log;
+
 import com.frostwire.jlibtorrent.TorrentHandle;
 import com.github.se_bastiaan.torrentstream.Torrent;
 import com.github.se_bastiaan.torrentstream.TorrentStream;
@@ -192,7 +194,7 @@ public class VideoServerPlugin implements WebServerPlugin {
               }
             }
           }
-          // Log.d(TAG, "PIECES STATUS: " + pieces.toString());
+          Log.d(TAG, "PIECES STATUS: " + pieces.toString());
           if (allPiecesDownloaded) {
             latch.countDown();
             timer.cancel();
