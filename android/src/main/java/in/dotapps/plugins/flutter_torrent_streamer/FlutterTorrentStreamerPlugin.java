@@ -55,7 +55,7 @@ public class FlutterTorrentStreamerPlugin implements MethodCallHandler, StreamHa
     methodChannel.setMethodCallHandler(instance);
   }
 
-  private TorrentListener torrentListener;
+  private TorrentServerListener torrentListener;
   private TorrentStream torrentStream;
   private TorrentStreamServer server;
   private String saveLocation;
@@ -96,11 +96,20 @@ public class FlutterTorrentStreamerPlugin implements MethodCallHandler, StreamHa
 
   @Override
   public void onListen(Object o, final EventSink eventSink) {
-    torrentListener = new TorrentListener() {
+    torrentListener = new TorrentServerListener() {
+      @Override
+      public void onServerReady(String url) {
+        Log.i(TAG,"Torrent Ready to Stream");
+        final HashMap<String, Object> data = new HashMap<>();
+        data.put("url", url);
+        eventSink.success(new EventUpdate("ready", data).toMap());
+      }
+
       @Override
       public void onStreamPrepared(Torrent torrent) {
         // Called when torrent file/magnet meta data have been fetched
         // If auto download is disabled then this is a safe place to start download.
+        Log.i(TAG,"Torrent Data Fetched");
         eventSink.success(new EventUpdate("prepared", null).toMap());
       }
 
@@ -108,6 +117,7 @@ public class FlutterTorrentStreamerPlugin implements MethodCallHandler, StreamHa
       public void onStreamStarted(Torrent torrent) {
         isDownloading = true;
         // Called when torrent download starts
+        Log.i(TAG,"Started Torrent Data Fetching");
         eventSink.success(new EventUpdate("started", null).toMap());
       }
 
@@ -116,15 +126,16 @@ public class FlutterTorrentStreamerPlugin implements MethodCallHandler, StreamHa
         isDownloading = false;
         final HashMap<String, Object> data = new HashMap<>();
         data.put("message", e.getMessage());
+        Log.i(TAG,"Torrent Data Fetching Error");
         eventSink.success(new EventUpdate("error", data).toMap());
       }
 
       @Override
       public void onStreamReady(Torrent torrent) {
         // Called when enough bits have been downloaded to stream video
-        final HashMap<String, Object> data = new HashMap<>();
-        data.put("url", getTorrentStreamingUrl(torrent));
-        eventSink.success(new EventUpdate("ready", data).toMap());
+//        final HashMap<String, Object> data = new HashMap<>();
+//        data.put("url", getTorrentStreamingUrl(torrent));
+//        eventSink.success(new EventUpdate("ready", data).toMap());
       }
 
       @Override
@@ -145,14 +156,15 @@ public class FlutterTorrentStreamerPlugin implements MethodCallHandler, StreamHa
       public void onStreamStopped() {
         isDownloading = false;
         eventSink.success(new EventUpdate("stopped", null).toMap());
+        Log.i(TAG,"Torrent Stream Stopped");
       }
     };
-    torrentStream.addListener(torrentListener);
+    server.addListener(torrentListener);
   }
 
   @Override
   public void onCancel(Object o) {
-    torrentStream.removeListener(torrentListener);
+    server.removeListener(torrentListener);
     torrentListener = null;
   }
 
@@ -172,18 +184,18 @@ public class FlutterTorrentStreamerPlugin implements MethodCallHandler, StreamHa
     torrentStream = TorrentStream.init(torrentOptions);
 
     final String host = "localhost";
-    try {
-      server = new TorrentStreamServer(host, port, saveLocation, torrentStream);
-      server.start();
-    } catch (IOException e) {
-      result.error("INIT_ERROR", null, e);
-    }
+    //      server = new TorrentStreamServer(host, port, saveLocation, torrentStream);
+    server = TorrentStreamServer.getInstance();
+    server.setTorrentOptions(torrentOptions);
+    server.setServerHost(host);
+    server.setServerPort(port);
+    server.startTorrentStream();
 
     Log.d(packagePrefix, "Torrent server listening to http://" +
-      server.getHostname() + ":" + server.getListeningPort() + "/");
+      host+ ":" + port + "/");
 
     registrar.addViewDestroyListener(flutterNativeView -> {
-      server.stop();
+      server.stopStream();
       return true;
     });
 
@@ -193,19 +205,25 @@ public class FlutterTorrentStreamerPlugin implements MethodCallHandler, StreamHa
 
   private void startHandler(String uri, Result result) {
     if (isDownloading) result.error("Download already in progress", null, null);
-
-    torrentStream.startStream(uri);
+    try {
+      server.startStream(uri);
+      Log.i(TAG,"Starting Torrent Download");
+    } catch (TorrentStreamNotInitializedException e) {
+      e.printStackTrace();
+    } catch (IOException e) {
+      e.printStackTrace();
+    }
     result.success(null);
   }
 
   private void stopHandler(Result result) {
-    torrentStream.stopStream();
+    server.stopStream();
     result.success(null);
   }
 
   private void getVideoPathHandler(Result result) {
     if (isDownloading) {
-      final Torrent torrent = torrentStream.getCurrentTorrent();
+      final Torrent torrent = server.getCurrentTorrent();
       result.success(torrent.getVideoFile().toURI().toString());
     } else {
       result.error("No active torrent to stream", null, null);
@@ -214,7 +232,7 @@ public class FlutterTorrentStreamerPlugin implements MethodCallHandler, StreamHa
 
   private void getStreamUrlHandler(Result result) {
     if (isDownloading) {
-      final Torrent torrent = torrentStream.getCurrentTorrent();
+      final Torrent torrent = server.getCurrentTorrent();
       result.success(getTorrentStreamingUrl(torrent));
     } else {
       result.error("No active torrent to stream", null, null);
@@ -223,7 +241,7 @@ public class FlutterTorrentStreamerPlugin implements MethodCallHandler, StreamHa
 
   private void launchVideoHandler(Result result) {
     final Context context = getActiveContext();
-    final Torrent torrent = torrentStream.getCurrentTorrent();
+    final Torrent torrent = server.getCurrentTorrent();
     final Intent intent = new Intent(Intent.ACTION_VIEW);
 
     if (torrent != null) {
@@ -254,13 +272,13 @@ public class FlutterTorrentStreamerPlugin implements MethodCallHandler, StreamHa
 
   private void disposeHandler(Result result) {
     if (server != null) {
-      server.stop();
+      server.stopStream();
     }
 
-    if (torrentStream != null) {
-      torrentStream.stopStream();
+    if (server != null) {
+      server.stopStream();
       if (torrentListener != null) {
-        torrentStream.removeListener(torrentListener);
+        server.removeListener(torrentListener);
       }
     }
 
@@ -272,10 +290,11 @@ public class FlutterTorrentStreamerPlugin implements MethodCallHandler, StreamHa
   }
 
   private String getTorrentStreamingUrl(Torrent torrent) {
-    String host = server.getHostname();
-    int port = server.getListeningPort();
+//    String host = server.getHostname();
+//    int port = server.getListeningPort();
 
-    String url = "http://" + host + ":" + port + "/" + getTorrentRelativePath(torrent);
+//    String url = "http://" + host + ":" + port + "/" + getTorrentRelativePath(torrent);
+    String url = server.getCurrentStreamUrl();
     return encodeURI(url);
   }
 
