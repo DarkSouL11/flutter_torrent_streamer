@@ -5,7 +5,7 @@ author: Sundeep Babbur <sundeep.sundeep11@gmail.com>
 homepage: https://github.com/DarkSouL11/flutter_torrent_streamer
 
 environment:
-  sdk: ">=2.1.0 <3.0.0"
+  sdk: ">=2.3.0 <3.0.0"
 
 dependencies:
   flutter:
