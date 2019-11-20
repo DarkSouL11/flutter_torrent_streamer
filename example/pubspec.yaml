@@ -9,7 +9,8 @@ dependencies:
   flutter:
     sdk: flutter
   cupertino_icons: ^0.1.2
-
+  drm_wv_fp_player: 0.0.3
+  
 dev_dependencies:
   flutter_test:
     sdk: flutter
